@@ -1,0 +1,63 @@
+name: build-apk
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 准备源码（支持仓库里只放一个 JcySkip-src.zip）
+        run: |
+          if [ -f JcySkip-src.zip ]; then unzip -q -o JcySkip-src.zip -d .; fi
+          if [ -f "JcySkip/app/build.gradle" ]; then
+            echo "PROJ=JcySkip" >> "$GITHUB_ENV"
+          elif [ -f "app/build.gradle" ]; then
+            echo "PROJ=." >> "$GITHUB_ENV"
+          else
+            echo "::error::找不到 Gradle 工程：根目录需要 JcySkip-src.zip 或 app/build.gradle"
+            exit 1
+          fi
+          echo "工程目录 = $PROJ"
+          ls -la
+
+      - name: 安装 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 安装 Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 安装 Gradle 8.7
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.7'
+
+      - name: 编译 release APK
+        working-directory: ${{ env.PROJ }}
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: JcySkip-apk
+          path: ${{ env.PROJ }}/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: 发布到 Release（手机上可直接点开安装）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "build-${{ github.run_number }}" \
+            ${PROJ}/app/build/outputs/apk/release/*.apk \
+            --title "JcySkip build ${{ github.run_number }}" \
+            --notes "自动构建产物，debug 签名，直接安装" || echo "release 已存在，跳过"
