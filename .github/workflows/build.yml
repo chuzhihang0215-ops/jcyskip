@@ -14,71 +14,42 @@ jobs:
       - name: 检出仓库
         uses: actions/checkout@v4
 
-      - name: 准备源码（自动解压任意 zip + 自动定位工程）
+      - name: 还原源码（源码内嵌在本文件，不依赖仓库任何文件）
         run: |
-          echo "========== 仓库根目录 =========="
-          ls -la
-          echo "========== 全部文件（前 80 个）=========="
-          find . -type f -not -path './.git/*' | sort | head -80
-
-          echo "========== 解压仓库里所有 zip =========="
-          find . -name '*.zip' -not -path './.git/*' -print | while read -r z; do
-            echo "unzip -> $z"
-            unzip -q -o "$z" -d . || echo "!! 解压失败: $z"
-          done
-
-          echo "========== 定位 Gradle 工程 =========="
-          PROJ=""
-          for f in $(find . -name 'build.gradle' -not -path './.git/*' | sort); do
-            case "$f" in
-              */app/build.gradle) PROJ=$(dirname "$(dirname "$f")") ;;
-            esac
-          done
-          if [ -z "$PROJ" ] || [ ! -f "$PROJ/settings.gradle" ]; then
-            PROJ=""
-            for f in $(find . -name 'settings.gradle' -not -path './.git/*' | sort); do
-              PROJ=$(dirname "$f")
-              break
-            done
-          fi
-          if [ -z "$PROJ" ]; then
-            echo "::error::仓库里没有 Gradle 工程。请确认 JcySkip-src.zip 已上传到仓库根目录，且文件名没有变成 'JcySkip-src (1).zip' 或 'JcySkip-src.zip.zip'。上面的文件清单就是仓库真实内容。"
-            exit 1
-          fi
-          echo "PROJ=$PROJ"
-          echo "PROJ=$PROJ" >> "$GITHUB_ENV"
-          ls -la "$PROJ"
-
-      - name: 安装 JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: 安装 Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: 安装 Gradle 8.7
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.7'
-
-      - name: 编译 release APK
-        working-directory: ${{ env.PROJ }}
-        run: gradle assembleRelease --no-daemon --stacktrace
-
-      - name: 上传构建产物
-        uses: actions/upload-artifact@v4
-        with:
-          name: JcySkip-apk
-          path: ${{ env.PROJ }}/app/build/outputs/apk/release/*.apk
-          if-no-files-found: error
-
-      - name: 发布到 Release（手机上可直接点开安装）
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "build-${{ github.run_number }}" \
-            ${PROJ}/app/build/outputs/apk/release/*.apk \
-            --title "JcySkip build ${{ github.run_number }}" \
-            --notes "自动构建产物，debug 签名，直接安装" || echo "release 已存在，跳过"
+          base64 -d > /tmp/src.tgz <<'B64EOF'
+          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
