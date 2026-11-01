@@ -14,19 +14,40 @@ jobs:
       - name: 检出仓库
         uses: actions/checkout@v4
 
-      - name: 准备源码（支持仓库里只放一个 JcySkip-src.zip）
+      - name: 准备源码（自动解压任意 zip + 自动定位工程）
         run: |
-          if [ -f JcySkip-src.zip ]; then unzip -q -o JcySkip-src.zip -d .; fi
-          if [ -f "JcySkip/app/build.gradle" ]; then
-            echo "PROJ=JcySkip" >> "$GITHUB_ENV"
-          elif [ -f "app/build.gradle" ]; then
-            echo "PROJ=." >> "$GITHUB_ENV"
-          else
-            echo "::error::找不到 Gradle 工程：根目录需要 JcySkip-src.zip 或 app/build.gradle"
+          echo "========== 仓库根目录 =========="
+          ls -la
+          echo "========== 全部文件（前 80 个）=========="
+          find . -type f -not -path './.git/*' | sort | head -80
+
+          echo "========== 解压仓库里所有 zip =========="
+          find . -name '*.zip' -not -path './.git/*' -print | while read -r z; do
+            echo "unzip -> $z"
+            unzip -q -o "$z" -d . || echo "!! 解压失败: $z"
+          done
+
+          echo "========== 定位 Gradle 工程 =========="
+          PROJ=""
+          for f in $(find . -name 'build.gradle' -not -path './.git/*' | sort); do
+            case "$f" in
+              */app/build.gradle) PROJ=$(dirname "$(dirname "$f")") ;;
+            esac
+          done
+          if [ -z "$PROJ" ] || [ ! -f "$PROJ/settings.gradle" ]; then
+            PROJ=""
+            for f in $(find . -name 'settings.gradle' -not -path './.git/*' | sort); do
+              PROJ=$(dirname "$f")
+              break
+            done
+          fi
+          if [ -z "$PROJ" ]; then
+            echo "::error::仓库里没有 Gradle 工程。请确认 JcySkip-src.zip 已上传到仓库根目录，且文件名没有变成 'JcySkip-src (1).zip' 或 'JcySkip-src.zip.zip'。上面的文件清单就是仓库真实内容。"
             exit 1
           fi
-          echo "工程目录 = $PROJ"
-          ls -la
+          echo "PROJ=$PROJ"
+          echo "PROJ=$PROJ" >> "$GITHUB_ENV"
+          ls -la "$PROJ"
 
       - name: 安装 JDK 17
         uses: actions/setup-java@v4
