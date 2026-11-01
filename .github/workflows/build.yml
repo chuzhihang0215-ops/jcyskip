@@ -106,11 +106,10 @@ jobs:
           GOT=$(sha256sum /tmp/src.tgz | awk '{print $1}')
           echo "sha256=$GOT"
           if [ "$GOT" != "$EXPECT" ]; then
-            echo "::error::源码还原失败：base64 不完整，请重新上传 build.yml"
+            echo "::error::源码还原失败：内嵌 base64 不完整"
             exit 1
           fi
           tar xzf /tmp/src.tgz -C .
-          echo "=== 工程文件 ==="
           find . -type f -not -path './.git/*' | sort
           test -f app/build.gradle
 
@@ -119,7 +118,16 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
+      - name: 检查 Runner 自带的 Android SDK
+        run: |
+          echo "ANDROID_HOME=${ANDROID_HOME:-unset}"
+          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-unset}"
+          SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "--- platforms ---"
+          ls "$SDK/platforms" || true
+          echo "--- build-tools ---"
+          ls "$SDK/build-tools" || true
+          java -version
 
       - uses: gradle/actions/setup-gradle@v3
         with:
